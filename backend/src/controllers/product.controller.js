@@ -1,0 +1,109 @@
+import { Product } from "../models/product.model.js";
+import mongoose from "mongoose";
+
+export const uploadProduct = async (req, res) => {
+  try {
+    const { productName, price, description, category, stock, image } =
+      req.body;
+
+    if (
+      !productName ||
+      price === undefined ||
+      !description ||
+      !category ||
+      stock === undefined
+    ) {
+      return res.status(400).json({ message: "All fields are required" });
+    }
+
+    if (price < 0 || stock < 0) {
+      return res
+        .status(400)
+        .json({ message: "Price and stock must be non-negative" });
+    }
+
+    const newProduct = await Product.create({
+      productName,
+      price,
+      description,
+      category,
+      stock,
+      image,
+    });
+
+    res.status(201).json({
+      message: "Product uploaded successfully",
+      product: newProduct,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      message: "Error uploading product",
+      error: error.message,
+    });
+  }
+};
+
+export const updateProduct = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { productName, price, description, category, stock, image } =
+      req.body;
+
+    const updateFields = {};
+
+    if (productName !== undefined) updateFields.productName = productName;
+    if (price !== undefined) updateFields.price = price;
+    if (description !== undefined) updateFields.description = description;
+    if (category !== undefined) updateFields.category = category;
+    if (stock !== undefined) updateFields.stock = stock;
+    if (image !== undefined) updateFields.image = image;
+
+    if (Object.keys(updateFields).length === 0) {
+      return res.status(400).json({ message: "No fields provided for update" });
+    }
+
+    const updatedProduct = await Product.findByIdAndUpdate(id, updateFields, {
+      new: true,
+      runValidators: true,
+    });
+
+    if (!updatedProduct) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    res.json({
+      message: "Product updated successfully",
+      product: updatedProduct,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error updating product",
+      error: error.message,
+    });
+  }
+};
+
+export const deleteProduct = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!id) {
+      return res.status(400).json({ message: "Product ID is required" });
+    }
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid product ID" });
+    }
+    const deleteProduct = await Product.findByIdAndDelete(id);
+    if (!deleteProduct) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+    res.status(200).json({ message: "Product deleted successfully" });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "Error deleting product", error: error.message });
+  }
+};
+export const toggleProductAvailability = async (req, res) => {};
+export const getProducts = async (req, res) => {};
+export const getProductById = async (req, res) => {};
