@@ -104,6 +104,128 @@ export const deleteProduct = async (req, res) => {
       .json({ message: "Error deleting product", error: error.message });
   }
 };
-export const toggleProductAvailability = async (req, res) => {};
-export const getProducts = async (req, res) => {};
-export const getProductById = async (req, res) => {};
+export const toggleProductAvailability = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!id) {
+      return res.status(400).json({ message: "Product ID is required" });
+    }
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid product ID" });
+    }
+    const product = await Product.findById(id);
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+    product.isAvailable = !product.isAvailable;
+    const updateProduct = await product.save();
+    if (updateProduct) {
+      return res.status(200).json({
+        message: "Product availability toggled successfully",
+        product: updateProduct,
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      message: "Error toggling product availability",
+      error: error.message,
+    });
+  }
+};
+
+export const getAllProducts = async (req, res) => {
+  try {
+    const products = await Product.find({ isAvailable: true });
+    res.status(200).json({
+      message: "Products fetched successfully",
+      products,
+    });
+  } catch (error) {
+    res.status(400).json({
+      message: "Error fetching products",
+      error: error.message,
+    });
+  }
+};
+
+export const getProductByName = async (req, res) => {
+  try {
+    const { name } = req.query;
+
+    if (!name) {
+      return res.status(400).json({ message: "Product name is required" });
+    }
+
+    const products = await Product.find({
+      productName: { $regex: name, $options: "i" }, // case-insensitive
+      isAvailable: true,
+    });
+
+    if (!products.length) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    res.status(200).json({
+      message: "Product fetched successfully",
+      products,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error fetching product by name",
+      error: error.message,
+    });
+  }
+};
+
+export const getProductsByCategory = async (req, res) => {
+  try {
+    const { category } = req.query;
+
+    if (!category) {
+      return res.status(400).json({ message: "Category is required" });
+    }
+
+    const products = await Product.find({
+      category: { $regex: `^${category}$`, $options: "i" }, // case-insensitive exact match
+      isAvailable: true,
+    });
+
+    if (!products.length) {
+      return res
+        .status(404)
+        .json({ message: "No products found for this category" });
+    }
+
+    res.status(200).json({
+      message: "Products fetched successfully",
+      products,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error fetching products by category",
+      error: error.message,
+    });
+  }
+};
+
+export const getProductById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!id) {
+      return res.status(400).json({ message: "Product Id is required" });
+    }
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid Product Id" });
+    }
+    const products = await Product.findById(id);
+    if (!products) {
+      return res.status(400).json({ message: "Product not found" });
+    }
+    res.status(200).json({ message: "Product fetch Successfully", products });
+  } catch (error) {
+    res.status(400).json({
+      message: "Error while fetching products by Id",
+      error: error.message,
+    });
+  }
+};
