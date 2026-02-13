@@ -138,11 +138,43 @@ export const removeFromCart = async (req, res) => {
     });
   }
 };
-export const checkout = async (req, res) => {};
+
 export const getCartItems = async (req, res) => {
-    try {
-        
-    } catch (error) {
-        
+  try {
+    const { userId } = req.params;
+
+    const cart = await Cart.findOne({ userId })
+      .populate("products.productId", "name price");
+
+    if (!cart) {
+      return res.status(404).json({ message: "Cart is empty" });
     }
+
+    res.status(200).json({
+      cart,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error fetching cart",
+      error: error.message,
+    });
+  }
 };
+
+export const clearCart = async (req, res) => {
+  try {
+    const { userId } = req.body;
+    const cart = await Cart.findOneAndDelete({ userId });
+    if (!cart) {
+      return res.status(404).json({ message: "Cart not found" });
+    }
+    res.status(200).json({ message: "Cart cleared successfully" });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error clearing cart",
+      error: error.message,
+    });
+  }
+};
+
+export const checkout = async (req, res) => {};
