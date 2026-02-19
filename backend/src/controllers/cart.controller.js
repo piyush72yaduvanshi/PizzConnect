@@ -1,6 +1,8 @@
+import { Cart } from "../models/cart.model.js";
+import { Order } from "../models/order.model.js";
+import { Product } from "../models/product.model.js";
+import User from "../models/User.js";
 import mongoose from "mongoose";
-import { Cart } from "../models/cart.model";
-import { Product } from "../models/product.model";
 
 export const addToCart = async (req, res) => {
   try {
@@ -143,8 +145,10 @@ export const getCartItems = async (req, res) => {
   try {
     const { userId } = req.params;
 
-    const cart = await Cart.findOne({ userId })
-      .populate("products.productId", "name price");
+    const cart = await Cart.findOne({ userId }).populate(
+      "products.productId",
+      "name price",
+    );
 
     if (!cart) {
       return res.status(404).json({ message: "Cart is empty" });
@@ -163,7 +167,7 @@ export const getCartItems = async (req, res) => {
 
 export const clearCart = async (req, res) => {
   try {
-    const { userId } = req.body;
+    const userId = req.user._id;
     const cart = await Cart.findOneAndDelete({ userId });
     if (!cart) {
       return res.status(404).json({ message: "Cart not found" });
@@ -177,4 +181,96 @@ export const clearCart = async (req, res) => {
   }
 };
 
-export const checkout = async (req, res) => {};
+export const checkout = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const userId = req.user._id;
+    const { deliveryAddress } = req.body;
+
+    if (!deliveryAddress) {
+      return res.status(400).json({
+        message: "Delivery address is required",
+      });
+    }
+
+    const cart = await Cart.findOne({ userId }).session(session);
+
+    if (!cart || cart.products.length === 0) {
+      return res.status(400).json({
+        message: "Cart is empty",
+      });
+    }
+
+    for (const item of cart.products) {
+      const product = await Product.findById(item.productId).session(session);
+
+      if (!product || product.isDeleted) {
+        throw new Error("Product not found");
+      }
+
+      if (product.stock < item.quantity) {
+        throw new Error(
+          `Insufficient stock for product: ${product.productName}`,
+        );
+      }
+    }
+
+    const deliveryPerson = await User.findOne({
+      role: "deliveryman",
+      available: true,
+      status: "active",
+    }).session(session);
+
+    if (!deliveryPerson) {
+      throw new Error("No delivery person available");
+    }
+
+    const order = await Order.create(
+      [
+        {
+          userId,
+          products: cart.products.map((item) => ({
+            productId: item.productId,
+            quantity: item.quantity,
+          })),
+          totalCount: cart.totalCount,
+          totalPrice: cart.totalPrice,
+          deliveryPersonId: deliveryPerson._id,
+          deliveryAddress,
+          status: "confirmed",
+        },
+      ],
+      { session },
+    );
+
+    for (const item of cart.products) {
+      await Product.findByIdAndUpdate(
+        item.productId,
+        {
+          $inc: { stock: -item.quantity },
+        },
+        { session },
+      );
+    }
+
+    await Cart.findOneAndDelete({ userId }).session(session);
+
+    await session.commitTransaction();
+    session.endSession();
+
+    res.status(201).json({
+      message: "Order placed successfully",
+      order: order[0],
+    });
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+
+    res.status(500).json({
+      message: "Checkout failed",
+      error: error.message,
+    });
+  }
+};
