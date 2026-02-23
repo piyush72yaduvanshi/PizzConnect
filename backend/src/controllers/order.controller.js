@@ -209,5 +209,9 @@ export const getAllOrders = async (req, res) => {
   res.status(200).json({ orders });
 };
 
+export const getOrderStatus = async (req, res) => {
+  const order = await Order.findById(req.params.id);
+  res.status(200).json({ status: order.status });
+};
 
 
